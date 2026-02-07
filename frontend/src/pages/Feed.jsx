@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Container, Box, TextField, Button, Paper, Typography, Avatar, IconButton, Divider, LinearProgress, Popover, Skeleton } from '@mui/material';
+import { Container, Box, TextField, Button, Paper, Typography, Avatar, IconButton, Divider, LinearProgress, Popover, Skeleton, Menu, MenuItem, Dialog, DialogContent, DialogActions, DialogTitle, DialogContentText, Snackbar, Alert } from '@mui/material';
 import { Link } from 'react-router-dom';
-import { Heart, MessageSquare, Image as ImageIcon, Send, Smile } from 'lucide-react';
+import { Heart, MessageSquare, Image as ImageIcon, Send, Smile, MoreVertical, Trash2, Edit2, X } from 'lucide-react';
 import EmojiPicker from 'emoji-picker-react';
 import axios from 'axios';
 import { useAuth } from '../context/AuthContext';
@@ -21,6 +21,14 @@ const Feed = () => {
     const [showEmojiPicker, setShowEmojiPicker] = useState(null);
 
     const [following, setFollowing] = useState([]);
+
+    // UI State
+    const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+    const [itemToDelete, setItemToDelete] = useState(null);
+    const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'success' });
+
+    const handleSnackbarClose = () => setSnackbar({ ...snackbar, open: false });
+    const showSnackbar = (message, severity = 'success') => setSnackbar({ open: true, message, severity });
 
     const fetchPosts = async () => {
         try {
@@ -91,8 +99,9 @@ const Feed = () => {
             setImageUrl('');
             setSelectedFile(null);
             fetchPosts();
+            showSnackbar("Post created successfully!");
         } catch (err) {
-            alert("Error creating post");
+            showSnackbar("Error creating post", "error");
         } finally {
             setIsUploading(false);
         }
@@ -184,6 +193,80 @@ const Feed = () => {
             console.error("Error replying", err);
         }
     };
+
+    // Helper to check ownership
+    const isOwner = (post) => {
+        if (!user) return false;
+        const currentUserId = String(user._id || user.id);
+        const postOwnerId = String(post.userId?._id || post.userId);
+        return currentUserId === postOwnerId;
+    };
+
+    // Edit & Delete Logic
+    const [menuAnchor, setMenuAnchor] = useState(null);
+    const [activePostId, setActivePostId] = useState(null);
+    const [editingPostId, setEditingPostId] = useState(null);
+    const [editContent, setEditContent] = useState('');
+
+    const handleMenuOpen = (e, postId) => {
+        setMenuAnchor(e.currentTarget);
+        setActivePostId(postId);
+    };
+
+    const handleMenuClose = () => {
+        setMenuAnchor(null);
+        setActivePostId(null);
+    };
+
+    const handleEditClick = (post) => {
+        setEditingPostId(post._id);
+        setEditContent(post.content);
+        handleMenuClose();
+    };
+
+    const handleUpdatePost = async () => {
+        if (!editContent.trim()) return;
+        try {
+            const token = localStorage.getItem('token');
+            const res = await axios.put(`${API_URL}/api/posts/${editingPostId}`,
+                { content: editContent },
+                { headers: { Authorization: `Bearer ${token}` } }
+            );
+
+            setPosts(prev => prev.map(p => p._id === editingPostId ? res.data : p));
+            setEditingPostId(null);
+            setEditContent('');
+            showSnackbar("Post updated");
+        } catch (err) {
+            console.error("Error updating post", err);
+            showSnackbar("Failed to update post", "error");
+        }
+    };
+
+    const handleDeleteClick = () => {
+        handleMenuClose();
+        setDeleteDialogOpen(true);
+        setItemToDelete(activePostId);
+    };
+
+    const handleConfirmDelete = async () => {
+        if (!itemToDelete) return;
+        try {
+            const token = localStorage.getItem('token');
+            await axios.delete(`${API_URL}/api/posts/${itemToDelete}`, {
+                headers: { Authorization: `Bearer ${token}` }
+            });
+            setPosts(prev => prev.filter(p => p._id !== itemToDelete));
+            showSnackbar("Post deleted");
+        } catch (err) {
+            console.error("Error deleting post", err);
+            showSnackbar("Failed to delete post", "error");
+        } finally {
+            setDeleteDialogOpen(false);
+            setItemToDelete(null);
+        }
+    };
+
 
     return (
         <Container maxWidth="sm" sx={{ mt: 4, pb: 8 }}>
@@ -306,74 +389,94 @@ const Feed = () => {
                                         </Link>
                                         <Typography variant="caption" color="text.secondary">
                                             {new Date(post.createdAt).toLocaleString('en-US', {
-                                                weekday: 'short',
-                                                month: 'short',
-                                                day: 'numeric',
-                                                hour: 'numeric',
-                                                minute: '2-digit',
-                                                hour12: true
+                                                month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit'
                                             })}
                                         </Typography>
                                     </Box>
-                                    {user && (user.id !== (post.userId._id || post.userId) && user._id !== (post.userId._id || post.userId)) && (
-                                        <Button
-                                            size="small"
-                                            variant={following.includes(post.userId._id || post.userId) ? "outlined" : "contained"}
-                                            onClick={() => handleFollow(post.userId._id || post.userId)}
-                                            sx={{
-                                                borderRadius: 20,
-                                                textTransform: 'none',
-                                                height: 28,
-                                                minWidth: 80,
-                                                fontSize: '0.8rem',
-                                                fontWeight: 600,
-                                                boxShadow: 'none',
-                                                '&:hover': {
+                                    {isOwner(post) ? (
+                                        <IconButton size="small" onClick={(e) => handleMenuOpen(e, post._id)}>
+                                            <MoreVertical size={20} />
+                                        </IconButton>
+                                    ) : (
+                                        user && (
+                                            <Button
+                                                variant={following.includes(post.userId._id || post.userId) ? 'outlined' : 'contained'}
+                                                size="small"
+                                                onClick={() => handleFollow(post.userId._id || post.userId)}
+                                                sx={{
+                                                    borderRadius: 20,
+                                                    textTransform: 'none',
+                                                    height: 28,
+                                                    minWidth: 80,
+                                                    fontSize: '0.8rem',
+                                                    fontWeight: 600,
                                                     boxShadow: 'none',
-                                                    bgcolor: following.includes(post.userId._id || post.userId) ? 'transparent' : 'primary.dark'
-                                                }
-                                            }}
-                                        >
-                                            {following.includes(post.userId._id || post.userId) ? 'Following' : 'Follow'}
-                                        </Button>
+                                                    '&:hover': {
+                                                        boxShadow: 'none',
+                                                        bgcolor: following.includes(post.userId._id || post.userId) ? 'transparent' : 'primary.dark'
+                                                    }
+                                                }}
+                                            >
+                                                {following.includes(post.userId._id || post.userId) ? 'Following' : 'Follow'}
+                                            </Button>
+                                        )
                                     )}
                                 </Box>
                             </Box>
                         </Box>
 
                         <Box sx={{ px: 2, pb: 1 }}>
-                            <Typography variant="body1" sx={{ fontSize: '1rem', mb: 1.5 }}>{post.content}</Typography>
+                            {editingPostId === post._id ? (
+                                <Box sx={{ mb: 2 }}>
+                                    <TextField
+                                        fullWidth
+                                        multiline
+                                        value={editContent}
+                                        onChange={(e) => setEditContent(e.target.value)}
+                                        variant="outlined"
+                                        sx={{ mb: 1, bgcolor: 'background.neutral', borderRadius: 2 }}
+                                    />
+                                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, justifyContent: 'flex-end' }}>
+                                        <Button size="small" onClick={() => setEditingPostId(null)} sx={{ color: 'text.secondary' }}>Cancel</Button>
+                                        <Button size="small" variant="contained" onClick={handleUpdatePost} sx={{ borderRadius: 20 }}>Save</Button>
+                                    </Box>
+                                </Box>
+                            ) : (
+                                <Typography variant="body1" sx={{ fontSize: '1rem', mb: 1.5 }}>{post.content}</Typography>
+                            )}
                         </Box>
 
-                        {post.image && (
-                            <Box
-                                onDoubleClick={() => handleLike(post._id)}
-                                sx={{
-                                    width: '100%',
-                                    maxHeight: '600px',
-                                    overflow: 'hidden',
-                                    display: 'flex',
-                                    justifyContent: 'center',
-                                    alignItems: 'center',
-                                    bgcolor: 'background.neutral',
-                                    cursor: 'pointer',
-                                    position: 'relative'
-                                }}
-                            >
-                                <img
-                                    src={post.image}
-                                    alt="post"
-                                    style={{
-                                        maxWidth: '100%',
+                        {
+                            post.image && (
+                                <Box
+                                    onDoubleClick={() => handleLike(post._id)}
+                                    sx={{
+                                        width: '100%',
                                         maxHeight: '600px',
-                                        objectFit: 'contain',
-                                        display: 'block'
+                                        overflow: 'hidden',
+                                        display: 'flex',
+                                        justifyContent: 'center',
+                                        alignItems: 'center',
+                                        bgcolor: 'background.neutral',
+                                        cursor: 'pointer',
+                                        position: 'relative'
                                     }}
-                                />
-                            </Box>
-                        )}
+                                >
+                                    <img
+                                        src={post.image}
+                                        alt="post"
+                                        style={{
+                                            maxWidth: '100%',
+                                            maxHeight: '600px',
+                                            objectFit: 'contain',
+                                            display: 'block'
+                                        }}
+                                    />
+                                </Box>
+                            )
+                        }
 
-                        <Box sx={{ p: 1.5, display: 'flex', alignItems: 'center', gap: 1 }}>
+                        < Box sx={{ p: 1.5, display: 'flex', alignItems: 'center', gap: 1 }}>
                             {(() => {
                                 const currentUserId = user?.id || user?._id;
                                 const isLiked = post.likes.includes(currentUserId);
@@ -397,56 +500,58 @@ const Feed = () => {
                                 <MessageSquare size={20} />
                                 <Typography variant="body2" sx={{ ml: 1, fontWeight: 600 }}>{post.comments.length || ''}</Typography>
                             </IconButton>
-                        </Box>
+                        </Box >
 
                         {/* Comments Section */}
-                        <Box sx={{ px: 2, pb: 2 }}>
-                            {post.comments.length > 0 && (
-                                <Box sx={{ mb: 2, bgcolor: 'background.neutral', p: 2, borderRadius: 3 }}>
-                                    {post.comments.map((comment, idx) => (
-                                        <Box key={idx} sx={{ mb: 2 }}>
-                                            <Typography variant="body2" color="text.primary">
-                                                <strong>{comment.username}:</strong> {comment.text}
-                                            </Typography>
-                                            <Button
-                                                size="small"
-                                                sx={{ fontSize: '0.7rem', textTransform: 'none', color: 'text.secondary', p: 0, minWidth: 0, mt: 0.5 }}
-                                                onClick={() => setActiveReply(activeReply?.commentId === comment._id ? null : { postId: post._id, commentId: comment._id })}
-                                            >
-                                                Reply
-                                            </Button>
+                        < Box sx={{ px: 2, pb: 2 }}>
+                            {
+                                post.comments.length > 0 && (
+                                    <Box sx={{ mb: 2, bgcolor: 'background.neutral', p: 2, borderRadius: 3 }}>
+                                        {post.comments.map((comment, idx) => (
+                                            <Box key={idx} sx={{ mb: 2 }}>
+                                                <Typography variant="body2" color="text.primary">
+                                                    <strong>{comment.username}:</strong> {comment.text}
+                                                </Typography>
+                                                <Button
+                                                    size="small"
+                                                    sx={{ fontSize: '0.7rem', textTransform: 'none', color: 'text.secondary', p: 0, minWidth: 0, mt: 0.5 }}
+                                                    onClick={() => setActiveReply(activeReply?.commentId === comment._id ? null : { postId: post._id, commentId: comment._id })}
+                                                >
+                                                    Reply
+                                                </Button>
 
-                                            {comment.replies && comment.replies.length > 0 && (
-                                                <Box sx={{ ml: 3, mt: 1, pl: 1, borderLeft: '2px solid', borderColor: 'divider' }}>
-                                                    {comment.replies.map((reply, rIdx) => (
-                                                        <Box key={rIdx} sx={{ mb: 0.5 }}>
-                                                            <Typography variant="body2" sx={{ fontSize: '0.85rem' }} color="text.secondary">
-                                                                <strong>{reply.username}:</strong> {reply.text}
-                                                            </Typography>
-                                                        </Box>
-                                                    ))}
-                                                </Box>
-                                            )}
+                                                {comment.replies && comment.replies.length > 0 && (
+                                                    <Box sx={{ ml: 3, mt: 1, pl: 1, borderLeft: '2px solid', borderColor: 'divider' }}>
+                                                        {comment.replies.map((reply, rIdx) => (
+                                                            <Box key={rIdx} sx={{ mb: 0.5 }}>
+                                                                <Typography variant="body2" sx={{ fontSize: '0.85rem' }} color="text.secondary">
+                                                                    <strong>{reply.username}:</strong> {reply.text}
+                                                                </Typography>
+                                                            </Box>
+                                                        ))}
+                                                    </Box>
+                                                )}
 
-                                            {activeReply?.commentId === comment._id && (
-                                                <Box sx={{ mt: 1, ml: 2, display: 'flex', gap: 1, alignItems: 'center' }}>
-                                                    <TextField
-                                                        size="small"
-                                                        fullWidth
-                                                        variant="standard"
-                                                        placeholder={`Reply to ${comment.username}...`}
-                                                        value={replyText[comment._id] || ''}
-                                                        onChange={(e) => setReplyText({ ...replyText, [comment._id]: e.target.value })}
-                                                        InputProps={{ disableUnderline: true, sx: { fontSize: '0.9rem' } }}
-                                                    />
-                                                    <Button size="small" onClick={() => handleReplySubmit(post._id, comment._id)} disabled={!replyText[comment._id]?.trim()}>Send</Button>
-                                                </Box>
-                                            )}
-                                        </Box>
-                                    ))}
-                                </Box>
-                            )}
-                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mt: 1 }}>
+                                                {activeReply?.commentId === comment._id && (
+                                                    <Box sx={{ mt: 1, ml: 2, display: 'flex', gap: 1, alignItems: 'center' }}>
+                                                        <TextField
+                                                            size="small"
+                                                            fullWidth
+                                                            variant="standard"
+                                                            placeholder={`Reply to ${comment.username}...`}
+                                                            value={replyText[comment._id] || ''}
+                                                            onChange={(e) => setReplyText({ ...replyText, [comment._id]: e.target.value })}
+                                                            InputProps={{ disableUnderline: true, sx: { fontSize: '0.9rem' } }}
+                                                        />
+                                                        <Button size="small" onClick={() => handleReplySubmit(post._id, comment._id)} disabled={!replyText[comment._id]?.trim()}>Send</Button>
+                                                    </Box>
+                                                )}
+                                            </Box>
+                                        ))}
+                                    </Box>
+                                )
+                            }
+                            < Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mt: 1 }}>
                                 <Avatar sx={{ width: 28, height: 28, bgcolor: 'primary.light' }} src={user?.profilePic} />
                                 <Box sx={{ display: 'flex', flexGrow: 1, bgcolor: 'background.neutral', borderRadius: 4, px: 2, py: 0.5, alignItems: 'center' }}>
                                     <TextField
@@ -461,12 +566,52 @@ const Feed = () => {
                                         <Send size={16} />
                                     </IconButton>
                                 </Box>
-                            </Box>
-                        </Box>
-                    </Paper>
+                            </Box >
+                        </Box >
+                    </Paper >
                 ))
             )}
-        </Container>
+            <Menu
+                anchorEl={menuAnchor}
+                open={Boolean(menuAnchor)}
+                onClose={handleMenuClose}
+                PaperProps={{
+                    sx: { width: 150, borderRadius: 2, boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }
+                }}
+            >
+                <MenuItem onClick={() => handleEditClick(posts.find(p => p._id === activePostId))} sx={{ gap: 1.5 }}>
+                    <Edit2 size={18} /> Edit
+                </MenuItem>
+                <MenuItem onClick={handleDeleteClick} sx={{ gap: 1.5, color: 'error.main' }}>
+                    <Trash2 size={18} /> Delete
+                </MenuItem>
+            </Menu>
+
+            {/* Delete Confirmation Dialog */}
+            <Dialog
+                open={deleteDialogOpen}
+                onClose={() => setDeleteDialogOpen(false)}
+                PaperProps={{ sx: { borderRadius: 3, p: 1 } }}
+            >
+                <DialogTitle sx={{ fontWeight: 700 }}>Delete Post?</DialogTitle>
+                <DialogContent>
+                    <DialogContentText>
+                        This can’t be undone and it will be removed from your profile, the timeline of any accounts that follow you, and from search results.
+                    </DialogContentText>
+                </DialogContent>
+                <DialogActions sx={{ px: 3, pb: 2 }}>
+                    <Button onClick={() => setDeleteDialogOpen(false)} sx={{ color: 'text.secondary', borderRadius: 20, px: 3, textTransform: 'none', fontWeight: 600 }}>Cancel</Button>
+                    <Button onClick={handleConfirmDelete} variant="contained" color="error" sx={{ borderRadius: 20, px: 3, textTransform: 'none', fontWeight: 600, boxShadow: 'none' }}>Delete</Button>
+                </DialogActions>
+            </Dialog>
+
+            {/* Global Snackbar */}
+            <Snackbar open={snackbar.open} autoHideDuration={6000} onClose={handleSnackbarClose} anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}>
+                <Alert onClose={handleSnackbarClose} severity={snackbar.severity} sx={{ width: '100%', borderRadius: 2 }}>
+                    {snackbar.message}
+                </Alert>
+            </Snackbar>
+        </Container >
     );
 };
 

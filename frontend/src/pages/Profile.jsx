@@ -1,9 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
 import axios from 'axios';
-import { Container, Paper, Typography, Box, Avatar, Button, Divider, CircularProgress, Grid, IconButton, TextField, Dialog, DialogTitle, DialogContent, DialogActions, useMediaQuery } from '@mui/material';
+import { Container, Paper, Typography, Box, Avatar, Button, Divider, CircularProgress, Grid, IconButton, TextField, Dialog, DialogTitle, DialogContent, DialogActions, useMediaQuery, Menu, MenuItem, Snackbar, Alert, DialogContentText } from '@mui/material';
 import { useTheme } from '@mui/material/styles';
-import { Heart, MessageSquare, Send, X } from 'lucide-react';
+import { Heart, MessageSquare, Send, X, MoreVertical, Trash2, Edit2 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { API_URL } from '../config';
 
@@ -42,6 +42,85 @@ const Profile = () => {
     const [replyText, setReplyText] = useState({});
     const [activeReply, setActiveReply] = useState(null);
     const [showComments, setShowComments] = useState({}); // Track expanded comments per post
+
+    // Edit & Delete State
+    const [menuAnchor, setMenuAnchor] = useState(null);
+    const [activePostId, setActivePostId] = useState(null);
+    const [editingPostId, setEditingPostId] = useState(null);
+    const [editContent, setEditContent] = useState('');
+    const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+    const [itemToDelete, setItemToDelete] = useState(null);
+    const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'success' });
+
+    const handleSnackbarClose = () => setSnackbar({ ...snackbar, open: false });
+    const showSnackbar = (message, severity = 'success') => setSnackbar({ open: true, message, severity });
+
+    // Helper to check post ownership
+    const isOwner = (post) => {
+        if (!currentUser) return false;
+        const currentUserId = String(currentUser.id || currentUser._id);
+        const postOwnerId = String(post.userId?._id || post.userId);
+        return currentUserId === postOwnerId;
+    };
+
+    const handleMenuOpen = (e, postId) => {
+        setMenuAnchor(e.currentTarget);
+        setActivePostId(postId);
+    };
+
+    const handleMenuClose = () => {
+        setMenuAnchor(null);
+        setActivePostId(null);
+    };
+
+    const handleEditClick = (post) => {
+        setEditingPostId(post._id);
+        setEditContent(post.content);
+        handleMenuClose();
+    };
+
+    const handleUpdatePost = async () => {
+        if (!editContent.trim()) return;
+        try {
+            const token = localStorage.getItem('token');
+            const res = await axios.put(`${API_URL}/api/posts/${editingPostId}`,
+                { content: editContent },
+                { headers: { Authorization: `Bearer ${token}` } }
+            );
+
+            setPosts(prev => prev.map(p => p._id === editingPostId ? res.data : p));
+            setEditingPostId(null);
+            setEditContent('');
+            showSnackbar("Post updated");
+        } catch (err) {
+            console.error("Error updating post", err);
+            showSnackbar("Failed to update post", "error");
+        }
+    };
+
+    const handleDeleteClick = () => {
+        handleMenuClose();
+        setDeleteDialogOpen(true);
+        setItemToDelete(activePostId);
+    };
+
+    const handleConfirmDelete = async () => {
+        if (!itemToDelete) return;
+        try {
+            const token = localStorage.getItem('token');
+            await axios.delete(`${API_URL}/api/posts/${itemToDelete}`, {
+                headers: { Authorization: `Bearer ${token}` }
+            });
+            setPosts(prev => prev.filter(p => p._id !== itemToDelete));
+            showSnackbar("Post deleted");
+        } catch (err) {
+            console.error("Error deleting post", err);
+            showSnackbar("Failed to delete post", "error");
+        } finally {
+            setDeleteDialogOpen(false);
+            setItemToDelete(null);
+        }
+    };
 
     useEffect(() => {
         const fetchData = async () => {
@@ -384,35 +463,60 @@ const Profile = () => {
                                             })}
                                         </Typography>
                                     </Box>
+
+                                    {isOwner(post) && (
+                                        <IconButton size="small" onClick={(e) => handleMenuOpen(e, post._id)}>
+                                            <MoreVertical size={20} />
+                                        </IconButton>
+                                    )}
                                 </Box>
                             </Box>
                         </Box>
 
                         <Box sx={{ px: 2, pb: 1 }}>
-                            <Typography variant="body1" sx={{ fontSize: '1rem', mb: 1.5 }}>{post.content}</Typography>
+                            {editingPostId === post._id ? (
+                                <Box sx={{ mb: 2 }}>
+                                    <TextField
+                                        fullWidth
+                                        multiline
+                                        value={editContent}
+                                        onChange={(e) => setEditContent(e.target.value)}
+                                        variant="outlined"
+                                        sx={{ mb: 1, bgcolor: 'background.neutral', borderRadius: 2 }}
+                                    />
+                                    <Box sx={{ display: 'flex', gap: 1, justifyContent: 'flex-end' }}>
+                                        <Button size="small" onClick={() => setEditingPostId(null)} sx={{ color: 'text.secondary' }}>Cancel</Button>
+                                        <Button size="small" variant="contained" onClick={handleUpdatePost} sx={{ borderRadius: 20 }}>Save</Button>
+                                    </Box>
+                                </Box>
+                            ) : (
+                                <Typography variant="body1" sx={{ fontSize: '1rem', mb: 1.5 }}>{post.content}</Typography>
+                            )}
                         </Box>
 
-                        {post.image && (
-                            <Box
-                                onDoubleClick={() => handleLike(post._id)}
-                                sx={{
-                                    width: '100%',
-                                    maxHeight: '500px',
-                                    overflow: 'hidden',
-                                    display: 'flex',
-                                    justifyContent: 'center',
-                                    bgcolor: '#f8f9fa',
-                                    cursor: 'pointer',
-                                    position: 'relative'
-                                }}
-                            >
-                                <img
-                                    src={post.image}
-                                    alt="post"
-                                    style={{ width: '100%', height: '100%', objectFit: 'contain', maxHeight: '500px' }}
-                                />
-                            </Box>
-                        )}
+                        {
+                            post.image && (
+                                <Box
+                                    onDoubleClick={() => handleLike(post._id)}
+                                    sx={{
+                                        width: '100%',
+                                        maxHeight: '500px',
+                                        overflow: 'hidden',
+                                        display: 'flex',
+                                        justifyContent: 'center',
+                                        bgcolor: '#f8f9fa',
+                                        cursor: 'pointer',
+                                        position: 'relative'
+                                    }}
+                                >
+                                    <img
+                                        src={post.image}
+                                        alt="post"
+                                        style={{ width: '100%', height: '100%', objectFit: 'contain', maxHeight: '500px' }}
+                                    />
+                                </Box>
+                            )
+                        }
 
                         <Box sx={{ p: 1.5, display: 'flex', alignItems: 'center', gap: 1 }}>
                             {(() => {
@@ -504,10 +608,11 @@ const Profile = () => {
                             </IconButton>
                         </Box>
                     </Paper>
-                ))}
-            </Box>
+                ))
+                }
+            </Box >
             {/* Edit Profile Dialog */}
-            <Dialog
+            < Dialog
                 open={openEditModal}
                 onClose={() => setOpenEditModal(false)}
                 fullWidth
@@ -587,6 +692,48 @@ const Profile = () => {
                     />
                 </DialogContent>
             </Dialog>
+
+            {/* Actions Menu */}
+            <Menu
+                anchorEl={menuAnchor}
+                open={Boolean(menuAnchor)}
+                onClose={handleMenuClose}
+                PaperProps={{
+                    sx: { width: 150, borderRadius: 2, boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }
+                }}
+            >
+                <MenuItem onClick={() => handleEditClick(posts.find(p => p._id === activePostId))} sx={{ gap: 1.5 }}>
+                    <Edit2 size={18} /> Edit
+                </MenuItem>
+                <MenuItem onClick={handleDeleteClick} sx={{ gap: 1.5, color: 'error.main' }}>
+                    <Trash2 size={18} /> Delete
+                </MenuItem>
+            </Menu>
+
+            {/* Delete Confirmation Dialog */}
+            <Dialog
+                open={deleteDialogOpen}
+                onClose={() => setDeleteDialogOpen(false)}
+                PaperProps={{ sx: { borderRadius: 3, p: 1 } }}
+            >
+                <DialogTitle sx={{ fontWeight: 700 }}>Delete Post?</DialogTitle>
+                <DialogContent>
+                    <DialogContentText>
+                        This can’t be undone and it will be removed from your profile, the timeline of any accounts that follow you, and from search results.
+                    </DialogContentText>
+                </DialogContent>
+                <DialogActions sx={{ px: 3, pb: 2 }}>
+                    <Button onClick={() => setDeleteDialogOpen(false)} sx={{ color: 'text.secondary', borderRadius: 20, px: 3, textTransform: 'none', fontWeight: 600 }}>Cancel</Button>
+                    <Button onClick={handleConfirmDelete} variant="contained" color="error" sx={{ borderRadius: 20, px: 3, textTransform: 'none', fontWeight: 600, boxShadow: 'none' }}>Delete</Button>
+                </DialogActions>
+            </Dialog>
+
+            {/* Global Snackbar */}
+            <Snackbar open={snackbar.open} autoHideDuration={6000} onClose={handleSnackbarClose} anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}>
+                <Alert onClose={handleSnackbarClose} severity={snackbar.severity} sx={{ width: '100%', borderRadius: 2 }}>
+                    {snackbar.message}
+                </Alert>
+            </Snackbar>
 
         </Container>
     );

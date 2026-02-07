@@ -171,3 +171,45 @@ exports.getUserPosts = async (req, res) => {
         res.status(500).json({ message: error.message });
     }
 };
+
+exports.updatePost = async (req, res) => {
+    try {
+        const { content } = req.body;
+        let post = await Post.findById(req.params.id);
+
+        if (!post) return res.status(404).json({ message: "Post not found" });
+
+        // Check ownership
+        if (post.userId.toString() !== req.user.id) {
+            return res.status(401).json({ message: "User not authorized" });
+        }
+
+        post.content = content || post.content;
+        await post.save();
+
+        // Re-populate for consistency
+        post = await Post.findById(post._id).populate('userId', 'username profilePic');
+
+        res.status(200).json(post);
+    } catch (error) {
+        res.status(500).json({ message: error.message });
+    }
+};
+
+exports.deletePost = async (req, res) => {
+    try {
+        const post = await Post.findById(req.params.id);
+
+        if (!post) return res.status(404).json({ message: "Post not found" });
+
+        // Check ownership
+        if (post.userId.toString() !== req.user.id) {
+            return res.status(401).json({ message: "User not authorized" });
+        }
+
+        await post.deleteOne();
+        res.status(200).json({ message: "Post removed" });
+    } catch (error) {
+        res.status(500).json({ message: error.message });
+    }
+};
