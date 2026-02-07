@@ -63,10 +63,10 @@ const Notifications = () => {
     }
 
     return (
-        <Container maxWidth="sm" sx={{ mt: 2, pb: 8 }}>
-            <Typography variant="h5" sx={{ mb: 3, fontWeight: 800, color: 'text.primary' }}>Notifications</Typography>
+        <Container maxWidth="sm" sx={{ mt: { xs: 0, sm: 2 }, pb: 8, px: { xs: 0, sm: 2 } }}>
+            <Typography variant="h5" sx={{ mb: { xs: 2, sm: 3 }, px: { xs: 2, sm: 0 }, fontWeight: 800, color: 'text.primary', fontSize: { xs: '1.25rem', sm: '1.5rem' }, mt: { xs: 2, sm: 0 } }}>Notifications</Typography>
 
-            <Paper elevation={0} sx={{ borderRadius: 4, overflow: 'hidden', border: '1px solid #e0e0e0', boxShadow: '0 4px 12px rgba(0,0,0,0.03)' }}>
+            <Paper elevation={0} sx={{ borderRadius: { xs: 0, sm: 4 }, overflow: 'hidden', border: { xs: 'none', sm: '1px solid #e0e0e0' }, borderTop: { xs: '1px solid #f0f0f0', sm: '1px solid #e0e0e0' }, boxShadow: { xs: 'none', sm: '0 4px 12px rgba(0,0,0,0.03)' } }}>
                 <List sx={{ p: 0 }}>
                     {notifications.length === 0 ? (
                         <Box sx={{ p: 6, textAlign: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
@@ -92,7 +92,7 @@ const Notifications = () => {
                                     button
                                     onClick={() => handleNotificationClick(notif)}
                                     sx={{
-                                        p: 2.5,
+                                        p: { xs: 2, sm: 2.5 },
                                         bgcolor: notif.read ? 'transparent' : 'rgba(99, 102, 241, 0.05)', // Subtle indigo tint for unread
                                         transition: 'all 0.2s ease',
                                         '&:hover': { bgcolor: 'action.hover' },
@@ -106,8 +106,8 @@ const Notifications = () => {
                                         <Avatar
                                             src={notif.sender?.profilePic}
                                             sx={{
-                                                width: 48,
-                                                height: 48,
+                                                width: { xs: 40, sm: 48 },
+                                                height: { xs: 40, sm: 48 },
                                                 bgcolor: 'primary.main',
                                                 border: '2px solid',
                                                 borderColor: 'background.paper',
@@ -140,11 +140,11 @@ const Notifications = () => {
                                             component="img"
                                             src={notif.post.image}
                                             sx={{
-                                                width: 56,
-                                                height: 56,
+                                                width: { xs: 48, sm: 56 },
+                                                height: { xs: 48, sm: 56 },
                                                 borderRadius: 2,
                                                 objectFit: 'cover',
-                                                ml: 2,
+                                                ml: { xs: 1.5, sm: 2 },
                                                 border: '1px solid #e0e0e0'
                                             }}
                                         />
