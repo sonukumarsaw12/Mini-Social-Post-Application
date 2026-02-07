@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
 import axios from 'axios';
-import { Container, Paper, Typography, Box, Avatar, Button, Divider, CircularProgress, Grid, IconButton, TextField, Dialog, DialogTitle, DialogContent, DialogActions } from '@mui/material';
-import { Heart, MessageSquare, Send } from 'lucide-react';
+import { Container, Paper, Typography, Box, Avatar, Button, Divider, CircularProgress, Grid, IconButton, TextField, Dialog, DialogTitle, DialogContent, DialogActions, useMediaQuery } from '@mui/material';
+import { useTheme } from '@mui/material/styles';
+import { Heart, MessageSquare, Send, X } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { API_URL } from '../config';
 
@@ -28,6 +29,8 @@ const CustomInput = ({ label, value, onChange, multiline = false }) => (
 
 const Profile = () => {
     const { userId } = useParams();
+    const theme = useTheme();
+    const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
     const { user: currentUser, updateUser } = useAuth();
     const [profileUser, setProfileUser] = useState(null);
     const [posts, setPosts] = useState([]);
@@ -509,18 +512,35 @@ const Profile = () => {
                 onClose={() => setOpenEditModal(false)}
                 fullWidth
                 maxWidth="sm"
+                fullScreen={isMobile}
                 PaperProps={{
-                    sx: { borderRadius: 3 }
+                    sx: { borderRadius: isMobile ? 0 : 3 }
                 }}
             >
                 {/* Custom Header */}
                 <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', p: 2, borderBottom: '1px solid #e0e0e0' }}>
-                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                        <IconButton onClick={() => setOpenEditModal(false)} edge="start" color="inherit">
+                            <X size={24} />
+                        </IconButton>
                         <Typography variant="h6" sx={{ fontWeight: 700 }}>Edit profile</Typography>
                     </Box>
-                    <IconButton onClick={handleEditSubmit} color="primary">
-                        <Typography variant="body1" sx={{ fontWeight: 600 }}>Save</Typography>
-                    </IconButton>
+                    <Button
+                        onClick={handleEditSubmit}
+                        variant="contained"
+                        sx={{
+                            borderRadius: 20,
+                            textTransform: 'none',
+                            fontWeight: 700,
+                            px: 3,
+                            boxShadow: 'none',
+                            bgcolor: 'black',
+                            color: 'white',
+                            '&:hover': { bgcolor: '#333', boxShadow: 'none' }
+                        }}
+                    >
+                        Save
+                    </Button>
                 </Box>
 
                 <DialogContent sx={{ p: 2 }}>
