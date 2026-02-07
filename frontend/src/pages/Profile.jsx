@@ -668,8 +668,8 @@ const Profile = () => {
                                 <Typography variant="body1" sx={{ fontWeight: 600, fontSize: '1rem', color: showComments[post._id] ? 'primary.main' : 'text.secondary' }}>{post.comments.length > 0 ? post.comments.length : ''}</Typography>
                             </Box>
 
-                            <Box sx={{ ml: 'auto' }}>
-                                <IconButton size="small" sx={{ color: 'text.secondary' }} onClick={() => {
+                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                                <IconButton size="small" sx={{ p: 0.5, color: 'text.secondary', '&:hover': { bgcolor: 'transparent', color: 'primary.main' } }} onClick={() => {
                                     const shareText = `Check out this post by ${post.username}:\n\n${post.content}`;
                                     if (navigator.share) {
                                         navigator.share({
@@ -678,12 +678,12 @@ const Profile = () => {
                                             url: window.location.href
                                         }).catch(console.error);
                                     } else {
-                                        navigator.clipboard.writeText(shareText)
-                                            .then(() => alert("Post copied to clipboard!"))
+                                        navigator.clipboard.writeText(`${shareText}\n\n${window.location.href}`)
+                                            .then(() => showSnackbar("Link copied to clipboard!"))
                                             .catch(console.error);
                                     }
                                 }}>
-                                    <Send size={24} />
+                                    <Send size={26} />
                                 </IconButton>
                             </Box>
                         </Box>
