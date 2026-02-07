@@ -213,3 +213,12 @@ exports.deletePost = async (req, res) => {
         res.status(500).json({ message: error.message });
     }
 };
+exports.getPostLikes = async (req, res) => {
+    try {
+        const post = await Post.findById(req.params.id).populate('likes', 'username profilePic name');
+        if (!post) return res.status(404).json({ message: "Post not found" });
+        res.status(200).json(post.likes);
+    } catch (error) {
+        res.status(500).json({ message: error.message });
+    }
+};

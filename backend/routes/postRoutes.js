@@ -10,6 +10,7 @@ router.get('/', getAllPosts);
 router.get('/:id', getPostById);
 router.get('/user/:userId', auth, getUserPosts);
 router.post('/:id/like', auth, likePost);
+router.get('/:id/likes', auth, require('../controllers/postController').getPostLikes);
 router.post('/:id/comment', auth, commentOnPost);
 router.post('/:id/comment/:commentId/reply', auth, replyToComment);
 router.put('/:id', auth, updatePost);

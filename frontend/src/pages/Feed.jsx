@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Container, Box, TextField, Button, Paper, Typography, Avatar, IconButton, Divider, LinearProgress, Popover, Skeleton, Menu, MenuItem, Dialog, DialogContent, DialogActions, DialogTitle, DialogContentText, Snackbar, Alert } from '@mui/material';
+import { Container, Box, TextField, Button, Paper, Typography, Avatar, IconButton, Divider, LinearProgress, Popover, Skeleton, Menu, MenuItem, Dialog, DialogContent, DialogActions, DialogTitle, DialogContentText, Snackbar, Alert, List, ListItem, ListItemAvatar, ListItemText, CircularProgress } from '@mui/material';
 import { Link } from 'react-router-dom';
 import { Heart, MessageSquare, Image as ImageIcon, Send, Smile, MoreVertical, Trash2, Edit2, X } from 'lucide-react';
 import EmojiPicker from 'emoji-picker-react';
@@ -26,6 +26,11 @@ const Feed = () => {
     const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
     const [itemToDelete, setItemToDelete] = useState(null);
     const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'success' });
+
+    // Likes List State
+    const [likesListOpen, setLikesListOpen] = useState(false);
+    const [likesList, setLikesList] = useState([]);
+    const [loadingLikes, setLoadingLikes] = useState(false);
 
     const handleSnackbarClose = () => setSnackbar({ ...snackbar, open: false });
     const showSnackbar = (message, severity = 'success') => setSnackbar({ open: true, message, severity });
@@ -207,6 +212,46 @@ const Feed = () => {
     const [activePostId, setActivePostId] = useState(null);
     const [editingPostId, setEditingPostId] = useState(null);
     const [editContent, setEditContent] = useState('');
+
+    const handleListFollow = async (targetUser) => {
+        try {
+            const token = localStorage.getItem('token');
+            const isFollowingTarget = following.includes(targetUser._id);
+            const endpoint = isFollowingTarget ? 'unfollow' : 'follow';
+
+            await axios.put(`${API_URL}/api/users/${targetUser._id}/${endpoint}`, {}, {
+                headers: { Authorization: `Bearer ${token}` }
+            });
+
+            if (isFollowingTarget) {
+                setFollowing(prev => prev.filter(id => id !== targetUser._id));
+            } else {
+                setFollowing(prev => [...prev, targetUser._id]);
+            }
+        } catch (err) {
+            console.error("Error toggling follow from list", err);
+        }
+    };
+
+    const fetchLikes = async (postId) => {
+        setLoadingLikes(true);
+        try {
+            const token = localStorage.getItem('token');
+            const res = await axios.get(`${API_URL}/api/posts/${postId}/likes`, {
+                headers: { Authorization: `Bearer ${token}` }
+            });
+            setLikesList(res.data);
+        } catch (err) {
+            console.error("Error fetching likes", err);
+        } finally {
+            setLoadingLikes(false);
+        }
+    };
+
+    const handleOpenLikes = (postId) => {
+        setLikesListOpen(true);
+        fetchLikes(postId);
+    };
 
     const handleMenuOpen = (e, postId) => {
         setMenuAnchor(e.currentTarget);
@@ -476,31 +521,55 @@ const Feed = () => {
                             )
                         }
 
-                        < Box sx={{ p: 1.5, display: 'flex', alignItems: 'center', gap: 1 }}>
+                        <Box sx={{ px: 2, pb: 1.5, display: 'flex', alignItems: 'center', gap: 3 }}>
                             {(() => {
                                 const currentUserId = user?.id || user?._id;
                                 const isLiked = post.likes.includes(currentUserId);
                                 return (
-                                    <IconButton onClick={() => handleLike(post._id)} sx={{ borderRadius: 2 }}>
-                                        <Heart
-                                            size={20}
-                                            fill={isLiked ? "#f91880" : "none"}
-                                            color={isLiked ? "#f91880" : "#536471"}
-                                            style={{
-                                                transition: 'transform 0.2s',
-                                                transform: isLiked ? 'scale(1.1)' : 'scale(1)'
+                                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                                        <IconButton onClick={() => handleLike(post._id)} size="small" sx={{ p: 0.5, '&:hover': { bgcolor: 'transparent' } }}>
+                                            <Heart
+                                                size={26}
+                                                fill={isLiked ? "#f91880" : "none"}
+                                                color={isLiked ? "#f91880" : "#0f1419"}
+                                                style={{
+                                                    transition: 'transform 0.2s',
+                                                    transform: isLiked ? 'scale(1.1)' : 'scale(1)'
+                                                }}
+                                            />
+                                        </IconButton>
+                                        <Typography
+                                            variant="body1"
+                                            sx={{
+                                                fontWeight: 600,
+                                                color: isLiked ? "#f91880" : "text.secondary",
+                                                cursor: 'pointer',
+                                                fontSize: '1rem',
+                                                '&:hover': { textDecoration: 'underline' }
                                             }}
-                                        />
-                                        <Typography variant="body2" sx={{ ml: 1, fontWeight: 600, color: isLiked ? "#f91880" : "text.secondary" }}>{post.likes.length || ''}</Typography>
-                                    </IconButton>
+                                            onClick={() => handleOpenLikes(post._id)}
+                                        >
+                                            {post.likes.length > 0 ? post.likes.length : ''}
+                                        </Typography>
+                                    </Box>
                                 );
                             })()}
 
-                            <IconButton sx={{ borderRadius: 2, color: 'text.secondary' }}>
-                                <MessageSquare size={20} />
-                                <Typography variant="body2" sx={{ ml: 1, fontWeight: 600 }}>{post.comments.length || ''}</Typography>
-                            </IconButton>
-                        </Box >
+                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                                <IconButton size="small" sx={{ p: 0.5, color: 'text.secondary', '&:hover': { bgcolor: 'transparent', color: 'primary.main' } }}>
+                                    <MessageSquare size={26} />
+                                </IconButton>
+                                <Typography variant="body1" sx={{ fontWeight: 600, fontSize: '1rem', color: 'text.secondary' }}>{post.comments.length > 0 ? post.comments.length : ''}</Typography>
+                            </Box>
+
+                            <Box sx={{ ml: 'auto' }}>
+                                <IconButton size="small" sx={{ color: 'text.secondary' }} onClick={() => {
+                                    // Share logic
+                                }}>
+                                    <Send size={24} />
+                                </IconButton>
+                            </Box>
+                        </Box>
 
                         {/* Comments Section */}
                         < Box sx={{ px: 2, pb: 2 }}>
@@ -611,6 +680,58 @@ const Feed = () => {
                     {snackbar.message}
                 </Alert>
             </Snackbar>
+            {/* Likes List Dialog */}
+            <Dialog
+                open={likesListOpen}
+                onClose={() => setLikesListOpen(false)}
+                fullWidth
+                maxWidth="xs"
+                PaperProps={{ sx: { borderRadius: 3, height: '50vh' } }}
+            >
+                <DialogTitle sx={{ fontWeight: 700, borderBottom: '1px solid #e0e0e0', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    Likes
+                    <IconButton onClick={() => setLikesListOpen(false)} size="small">
+                        <X size={20} />
+                    </IconButton>
+                </DialogTitle>
+                <DialogContent sx={{ p: 0 }}>
+                    {loadingLikes ? (
+                        <Box sx={{ display: 'flex', justifyContent: 'center', mt: 4 }}>
+                            <CircularProgress size={30} />
+                        </Box>
+                    ) : (
+                        <List>
+                            {likesList.length > 0 ? likesList.map((userItem) => (
+                                <ListItem key={userItem._id} sx={{ px: 2 }}>
+                                    <ListItemAvatar>
+                                        <Avatar src={userItem.profilePic}>{userItem.username[0].toUpperCase()}</Avatar>
+                                    </ListItemAvatar>
+                                    <ListItemText
+                                        primary={userItem.username}
+                                        secondary={userItem.name}
+                                        primaryTypographyProps={{ fontWeight: 600, fontSize: '0.9rem' }}
+                                    />
+                                    {user && user.id !== userItem._id && (
+                                        <Button
+                                            variant={following.includes(userItem._id) ? "outlined" : "contained"}
+                                            size="small"
+                                            onClick={() => handleListFollow(userItem)}
+                                            sx={{ borderRadius: 20, textTransform: 'none', fontSize: '0.8rem', minWidth: 80, boxShadow: 'none' }}
+                                        >
+                                            {following.includes(userItem._id) ? 'Following' : 'Follow'}
+                                        </Button>
+                                    )}
+                                </ListItem>
+                            )) : (
+                                <Typography sx={{ p: 3, textAlign: 'center', color: 'text.secondary' }}>
+                                    No likes yet.
+                                </Typography>
+                            )}
+                        </List>
+                    )}
+                </DialogContent>
+            </Dialog>
+
         </Container >
     );
 };
