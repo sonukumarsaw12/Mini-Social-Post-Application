@@ -1,7 +1,7 @@
 # Mini Social Post Application
 
 A full-featured social media application built using the MERN stack (MongoDB, Express, React, Node.js). This project allows users to share posts, interact with others through likes and comments, manage their profiles, and follow other users.
-
+- Live Link - https://mini-social-post-application-five.vercel.app/
 ## Features
 
 -   **User Authentication**: Secure Sign Up and Login with JWT authentication.
