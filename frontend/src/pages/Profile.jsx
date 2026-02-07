@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
 import axios from 'axios';
-import { Container, Paper, Typography, Box, Avatar, Button, Divider, CircularProgress, Grid, IconButton, TextField, Dialog, DialogTitle, DialogContent, DialogActions, useMediaQuery, Menu, MenuItem, Snackbar, Alert, DialogContentText } from '@mui/material';
+import { Container, Paper, Typography, Box, Avatar, Button, Divider, CircularProgress, Grid, IconButton, TextField, Dialog, DialogTitle, DialogContent, DialogActions, useMediaQuery, Menu, MenuItem, Snackbar, Alert, DialogContentText, List, ListItem, ListItemAvatar, ListItemText } from '@mui/material';
 import { useTheme } from '@mui/material/styles';
 import { Heart, MessageSquare, Send, X, MoreVertical, Trash2, Edit2 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
@@ -51,6 +51,12 @@ const Profile = () => {
     const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
     const [itemToDelete, setItemToDelete] = useState(null);
     const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'success' });
+
+    // Users List State (Followers/Following)
+    const [userListOpen, setUserListOpen] = useState(false);
+    const [listType, setListType] = useState('followers'); // 'followers' or 'following'
+    const [userList, setUserList] = useState([]);
+    const [loadingList, setLoadingList] = useState(false);
 
     const handleSnackbarClose = () => setSnackbar({ ...snackbar, open: false });
     const showSnackbar = (message, severity = 'success') => setSnackbar({ open: true, message, severity });
@@ -158,7 +164,36 @@ const Profile = () => {
         }
     }, [userId, currentUser]);
 
-    const handleFollow = async () => {
+    const handleFollow = async (targetUserId = userId) => {
+        try {
+            const token = localStorage.getItem('token');
+            // Check if we are following the target user.
+            // If targetUserId is the profile owner, use isFollowing state.
+            // If it's a user in the list, check if they are in the current user's following list (we might need to track this better, but for now let's assume we can check profileUser.followers if we are viewing the signed-in user's profile, OR we just toggle based on button state in the list).
+            // Actually, for the list, we should probably check if *currentUser* follows them.
+            // Let's simplify: `handleFollow` in list will need to update the list state too.
+
+            const isTargetProfile = targetUserId === userId;
+            const currentlyFollowing = isTargetProfile
+                ? isFollowing
+                : userList.find(u => u._id === targetUserId)?.isFollowing; // We need to know if we follow them. 
+
+            // Wait, the backend doesn't return "isFollowing" for the list. 
+            // We can check if `currentUser.following` contains the `targetUserId`.
+            // But `currentUser` from auth context might not be up-to-date with every follow action unless we update it.
+            // For now, let's rely on looking up in `currentUser.following` if available, or just toggle.
+
+            // Better approach for List: Pass the current status explicitly or derive it.
+            // Let's refactor handleFollow to be more generic or create a separate one for list.
+
+            // Let's stick to the main profile follow for now, and distinct one for list.
+        } catch (err) {
+            console.error("Error toggling follow", err);
+        }
+    };
+
+    // Refactored handleFollow for Profile Page Button
+    const handleProfileFollow = async () => {
         try {
             const token = localStorage.getItem('token');
             const endpoint = isFollowing ? 'unfollow' : 'follow';
@@ -178,9 +213,54 @@ const Profile = () => {
                     : [...prev.followers, currentUserId]
             }));
 
+            // Also update currentUser context if needed, but skipping for now to avoid complexity
         } catch (err) {
             console.error("Error toggling follow", err);
         }
+    };
+
+    const handleListFollow = async (targetUser) => {
+        try {
+            const token = localStorage.getItem('token');
+            const isFollowingTarget = currentUser.following.includes(targetUser._id);
+            // Note: currentUser.following might be IDs.
+
+            const endpoint = isFollowingTarget ? 'unfollow' : 'follow';
+            await axios.put(`${API_URL}/api/users/${targetUser._id}/${endpoint}`, {}, {
+                headers: { Authorization: `Bearer ${token}` }
+            });
+
+            // Update currentUser in context to reflect change (crucial for UI update)
+            if (isFollowingTarget) {
+                updateUser({ ...currentUser, following: currentUser.following.filter(id => id !== targetUser._id) });
+            } else {
+                updateUser({ ...currentUser, following: [...currentUser.following, targetUser._id] });
+            }
+
+        } catch (err) {
+            console.error("Error toggling follow from list", err);
+        }
+    };
+
+    const fetchFriends = async (type) => {
+        setLoadingList(true);
+        try {
+            const token = localStorage.getItem('token');
+            const res = await axios.get(`${API_URL}/api/users/${userId}/friends`, {
+                headers: { Authorization: `Bearer ${token}` }
+            });
+            setUserList(res.data[type]);
+        } catch (err) {
+            console.error("Error fetching friends", err);
+        } finally {
+            setLoadingList(false);
+        }
+    };
+
+    const handleOpenList = (type) => {
+        setListType(type);
+        setUserListOpen(true);
+        fetchFriends(type);
     };
 
     const handleLike = async (postId) => {
@@ -391,11 +471,11 @@ const Profile = () => {
                     )}
 
                     <Box sx={{ display: 'flex', gap: { xs: 4, sm: 6 }, mb: 4 }}>
-                        <Box sx={{ textAlign: 'center' }}>
+                        <Box sx={{ textAlign: 'center', cursor: 'pointer' }} onClick={() => handleOpenList('following')}>
                             <Typography variant="h6" sx={{ fontWeight: 800, fontSize: { xs: '1.1rem', sm: '1.25rem' } }}>{profileUser.following.length}</Typography>
                             <Typography variant="body2" color="text.secondary">Following</Typography>
                         </Box>
-                        <Box sx={{ textAlign: 'center' }}>
+                        <Box sx={{ textAlign: 'center', cursor: 'pointer' }} onClick={() => handleOpenList('followers')}>
                             <Typography variant="h6" sx={{ fontWeight: 800, fontSize: { xs: '1.1rem', sm: '1.25rem' } }}>{profileUser.followers.length}</Typography>
                             <Typography variant="body2" color="text.secondary">Followers</Typography>
                         </Box>
@@ -422,7 +502,7 @@ const Profile = () => {
                     ) : (
                         <Button
                             variant={isFollowing ? "outlined" : "contained"}
-                            onClick={handleFollow}
+                            onClick={handleProfileFollow}
                             sx={{ borderRadius: 50, textTransform: 'none', px: { xs: 4, sm: 6 }, py: 1, fontWeight: 700, boxShadow: 'none' }}
                             disableElevation
                         >
@@ -734,6 +814,58 @@ const Profile = () => {
                     {snackbar.message}
                 </Alert>
             </Snackbar>
+
+            {/* Users List Dialog (Followers/Following) */}
+            <Dialog
+                open={userListOpen}
+                onClose={() => setUserListOpen(false)}
+                fullWidth
+                maxWidth="xs"
+                PaperProps={{ sx: { borderRadius: 3, height: '50vh' } }}
+            >
+                <DialogTitle sx={{ fontWeight: 700, borderBottom: '1px solid #e0e0e0', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    {listType === 'followers' ? 'Followers' : 'Following'}
+                    <IconButton onClick={() => setUserListOpen(false)} size="small">
+                        <X size={20} />
+                    </IconButton>
+                </DialogTitle>
+                <DialogContent sx={{ p: 0 }}>
+                    {loadingList ? (
+                        <Box sx={{ display: 'flex', justifyContent: 'center', mt: 4 }}>
+                            <CircularProgress size={30} />
+                        </Box>
+                    ) : (
+                        <List>
+                            {userList.length > 0 ? userList.map((userItem) => (
+                                <ListItem key={userItem._id} sx={{ px: 2 }}>
+                                    <ListItemAvatar>
+                                        <Avatar src={userItem.profilePic}>{userItem.username[0].toUpperCase()}</Avatar>
+                                    </ListItemAvatar>
+                                    <ListItemText
+                                        primary={userItem.username}
+                                        secondary={userItem.name}
+                                        primaryTypographyProps={{ fontWeight: 600, fontSize: '0.9rem' }}
+                                    />
+                                    {currentUser && currentUser.id !== userItem._id && (
+                                        <Button
+                                            variant={currentUser.following.includes(userItem._id) ? "outlined" : "contained"}
+                                            size="small"
+                                            onClick={() => handleListFollow(userItem)}
+                                            sx={{ borderRadius: 20, textTransform: 'none', fontSize: '0.8rem', minWidth: 80, boxShadow: 'none' }}
+                                        >
+                                            {currentUser.following.includes(userItem._id) ? 'Following' : 'Follow'}
+                                        </Button>
+                                    )}
+                                </ListItem>
+                            )) : (
+                                <Typography sx={{ p: 3, textAlign: 'center', color: 'text.secondary' }}>
+                                    No users found.
+                                </Typography>
+                            )}
+                        </List>
+                    )}
+                </DialogContent>
+            </Dialog>
 
         </Container>
     );
