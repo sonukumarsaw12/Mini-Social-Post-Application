@@ -56,8 +56,9 @@ const Navbar = () => {
         handleMenuClose();
     };
 
-    const handleSearch = (e) => {
-        if (e.key === 'Enter' && searchTerm.trim()) {
+    const handleSearchSubmit = (e) => {
+        e.preventDefault();
+        if (searchTerm.trim()) {
             navigate(`/search?q=${searchTerm}`);
             setSearchTerm('');
         }
@@ -95,24 +96,26 @@ const Navbar = () => {
                     {user && (
                         <>
                             {/* Desktop Search */}
-                            <Box sx={{
-                                position: { md: 'absolute' },
-                                left: { md: '50%' },
-                                transform: { md: 'translateX(-50%)' },
-                                width: '100%',
-                                maxWidth: '600px',
-                                display: { xs: 'none', md: 'flex' },
-                                justifyContent: 'center',
-                                alignItems: 'center',
-                                px: { xs: 0, md: 2 },
-                                flexGrow: { xs: 1, md: 0 }
-                            }}>
+                            <Box
+                                component="form"
+                                onSubmit={handleSearchSubmit}
+                                sx={{
+                                    position: { md: 'absolute' },
+                                    left: { md: '50%' },
+                                    transform: { md: 'translateX(-50%)' },
+                                    width: '100%',
+                                    maxWidth: '600px',
+                                    display: { xs: 'none', md: 'flex' },
+                                    justifyContent: 'center',
+                                    alignItems: 'center',
+                                    px: { xs: 0, md: 2 },
+                                    flexGrow: { xs: 1, md: 0 }
+                                }}>
                                 <TextField
                                     placeholder="Search users or posts..."
                                     size="small"
                                     value={searchTerm}
                                     onChange={(e) => setSearchTerm(e.target.value)}
-                                    onKeyDown={handleSearch}
                                     autoFocus={showSearch} // Auto focus when opened on mobile
                                     onBlur={() => {
                                         // Optional: close on blur if empty on mobile
@@ -279,13 +282,16 @@ const Navbar = () => {
                 </Toolbar>
                 {/* Mobile Search Bar - Displayed below Toolbar on xs screens */}
                 {user && (
-                    <Box sx={{ display: { xs: 'block', md: 'none' }, pb: 2 }}>
+                    <Box
+                        component="form"
+                        onSubmit={handleSearchSubmit}
+                        sx={{ display: { xs: 'block', md: 'none' }, pb: 2 }}
+                    >
                         <TextField
                             placeholder="Search users or posts..."
                             size="small"
                             value={searchTerm}
                             onChange={(e) => setSearchTerm(e.target.value)}
-                            onKeyDown={handleSearch}
                             sx={{
                                 width: '100%',
                                 '& .MuiOutlinedInput-root': {
